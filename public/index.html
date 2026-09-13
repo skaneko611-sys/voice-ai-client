@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>音声AIクライアント</title>
+<style>
+  :root {
+    --bg: #0b0e14;
+    --panel: rgba(255, 255, 255, 0.06);
+    --border: rgba(255, 255, 255, 0.14);
+    --text: #eef0f5;
+    --accent: #7ee0d6;
+    --accent2: #f2a3c0;
+    --danger: #f2545c;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", "Hiragino Sans", "Yu Gothic", sans-serif;
+  }
+  .app {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 32px 20px 48px;
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+  }
+  h1 {
+    font-size: 20px;
+    margin: 0 0 4px;
+  }
+  .subtitle {
+    opacity: 0.6;
+    font-size: 13px;
+    margin: 0 0 24px;
+  }
+  .status {
+    font-size: 13px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    display: inline-block;
+    margin-bottom: 20px;
+    width: fit-content;
+  }
+  #talkBtn {
+    font-family: inherit;
+    font-size: 16px;
+    font-weight: 600;
+    padding: 16px 24px;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #10121a;
+    cursor: pointer;
+    transition: transform 0.12s ease, opacity 0.15s ease;
+  }
+  #talkBtn:hover { transform: translateY(-1px); }
+  #talkBtn:active { transform: translateY(0); }
+  #talkBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+  #talkBtn.active {
+    background: linear-gradient(135deg, var(--danger), var(--accent2));
+  }
+  .transcript {
+    margin-top: 24px;
+    flex: 1;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 14px;
+    background: rgba(255, 255, 255, 0.03);
+    min-height: 200px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .line {
+    font-size: 14px;
+    line-height: 1.5;
+    padding: 8px 12px;
+    border-radius: 10px;
+    max-width: 90%;
+  }
+  .line.user {
+    align-self: flex-end;
+    background: rgba(126, 224, 214, 0.15);
+  }
+  .line.ai {
+    align-self: flex-start;
+    background: rgba(242, 163, 192, 0.15);
+  }
+  .hint {
+    margin-top: 16px;
+    font-size: 12px;
+    opacity: 0.5;
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <h1>🎙️ 音声AIクライアント</h1>
+  <p class="subtitle">OpenAI Realtime API（WebRTC）を使った音声対話デモ</p>
+
+  <span class="status" id="status">待機中</span>
+  <div>
+    <button id="talkBtn">通話を開始</button>
+  </div>
+
+  <div class="transcript" id="transcript"></div>
+
+  <p class="hint">マイクへのアクセス許可が必要です。通話終了後もマイクは自動的に解放されます。</p>
+
+  <audio id="remoteAudio" autoplay></audio>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
