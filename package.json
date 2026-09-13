@@ -1,7 +1,7 @@
 {
   "name": "voice-ai-client",
   "version": "1.0.0",
-  "description": "OpenAI Realtime API を使ったブラウザ音声AIクライアント",
+  "description": "ブラウザ音声認識/音声合成 + Anthropic Claude API を使ったブラウザ音声AIクライアント",
   "type": "module",
   "main": "server.js",
   "scripts": {

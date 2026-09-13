@@ -14,51 +14,65 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 const PORT = process.env.PORT || 3000;
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const REALTIME_MODEL =
-  process.env.OPENAI_REALTIME_MODEL || 'gpt-4o-realtime-preview-2024-12-17';
-const VOICE = process.env.OPENAI_REALTIME_VOICE || 'verse';
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-5';
+const SYSTEM_PROMPT =
+  process.env.SYSTEM_PROMPT ||
+  'あなたは親しみやすい音声アシスタントです。声で読み上げられることを前提に、話し言葉で簡潔に(2〜3文程度)答えてください。';
 
-if (!OPENAI_API_KEY) {
+if (!ANTHROPIC_API_KEY) {
   console.warn(
-    '⚠️  OPENAI_API_KEY が設定されていません。.env ファイルを作成し、APIキーを設定してください（.env.example を参照）。'
+    '⚠️  ANTHROPIC_API_KEY が設定されていません。.env ファイルを作成し、APIキーを設定してください（.env.example を参照）。'
   );
 }
 
-// ブラウザは秘密のOpenAI APIキーを直接扱えないため、
-// このエンドポイントがサーバー側でOpenAIに問い合わせ、
-// 短時間だけ有効な「一時トークン（ephemeral key）」を発行してブラウザに渡す。
-app.post('/session', async (req, res) => {
-  if (!OPENAI_API_KEY) {
+// 音声認識(ブラウザ内蔵)で文字起こしされた会話履歴を受け取り、
+// Anthropic Claude APIで応答テキストを生成して返す。
+// 秘密のAPIキーはサーバー側だけで保持し、ブラウザには渡さない。
+app.post('/chat', async (req, res) => {
+  if (!ANTHROPIC_API_KEY) {
     return res.status(500).json({
-      error: 'サーバーに OPENAI_API_KEY が設定されていません。',
+      error: 'サーバーに ANTHROPIC_API_KEY が設定されていません。',
     });
   }
 
+  const { messages } = req.body;
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return res.status(400).json({ error: 'messages が不正です。' });
+  }
+
   try {
-    const response = await fetch('https://api.openai.com/v1/realtime/sessions', {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: REALTIME_MODEL,
-        voice: VOICE,
+        model: ANTHROPIC_MODEL,
+        max_tokens: 300,
+        system: SYSTEM_PROMPT,
+        messages,
       }),
     });
 
     const data = await response.json();
 
     if (!response.ok) {
-      console.error('OpenAI session creation failed:', data);
+      console.error('Anthropic API error:', data);
       return res.status(response.status).json({ error: data });
     }
 
-    res.json(data);
+    const reply = (data.content || [])
+      .filter((block) => block.type === 'text')
+      .map((block) => block.text)
+      .join('');
+
+    res.json({ reply });
   } catch (err) {
-    console.error('セッション作成中にエラーが発生しました:', err);
-    res.status(500).json({ error: 'セッションの作成に失敗しました' });
+    console.error('会話生成中にエラーが発生しました:', err);
+    res.status(500).json({ error: '会話の生成に失敗しました' });
   }
 });
 

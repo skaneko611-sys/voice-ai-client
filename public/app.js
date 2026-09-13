@@ -2,13 +2,19 @@
   const talkBtn = document.getElementById('talkBtn');
   const statusEl = document.getElementById('status');
   const transcriptEl = document.getElementById('transcript');
-  const audioEl = document.getElementById('remoteAudio');
 
-  let pc = null;
-  let dc = null;
-  let localStream = null;
-  let connected = false;
-  let connecting = false;
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  if (!SpeechRecognition || !window.speechSynthesis) {
+    statusEl.textContent = 'このブラウザは音声認識/音声合成に対応していません（Chrome推奨）';
+    talkBtn.disabled = true;
+    return;
+  }
+
+  let recognition = null;
+  let listening = false; // 通話中かどうか
+  let busy = false; // AI応答の生成中・読み上げ中(この間は音声認識を止める)
+  const history = [];
 
   function setStatus(text) {
     statusEl.textContent = text;
@@ -23,138 +29,129 @@
     transcriptEl.scrollTop = transcriptEl.scrollHeight;
   }
 
-  async function startSession() {
-    connecting = true;
-    talkBtn.disabled = true;
-    setStatus('接続中...');
+  function createRecognition() {
+    const r = new SpeechRecognition();
+    r.lang = 'ja-JP';
+    r.continuous = true;
+    r.interimResults = false;
+
+    r.onresult = (event) => {
+      const result = event.results[event.results.length - 1];
+      if (!result.isFinal) return;
+      const text = result[0].transcript.trim();
+      if (!text) return;
+      handleUserUtterance(text);
+    };
+
+    r.onerror = (event) => {
+      // no-speech(無音タイムアウト)やabortedは通常運転の一部なので無視する
+      if (event.error === 'no-speech' || event.error === 'aborted') return;
+      console.error('SpeechRecognition error:', event.error);
+      setStatus(`音声認識エラー: ${event.error}`);
+    };
+
+    r.onend = () => {
+      // 通話中かつ応答処理中でなければ、認識を継続するため再開する
+      if (listening && !busy) {
+        try {
+          recognition.start();
+        } catch {
+          // 直前に開始済みの場合などは無視
+        }
+      }
+    };
+
+    return r;
+  }
+
+  async function handleUserUtterance(text) {
+    appendTranscript('user', text);
+    history.push({ role: 'user', content: text });
+
+    busy = true;
+    setStatus('考え中...');
 
     try {
-      // 1. バックエンドから一時トークン(ephemeral key)を取得する
-      const sessionRes = await fetch('/session', { method: 'POST' });
-      const sessionData = await sessionRes.json();
-      if (!sessionRes.ok) {
+      const res = await fetch('/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: history }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
         throw new Error(
-          typeof sessionData.error === 'string'
-            ? sessionData.error
-            : 'セッションの作成に失敗しました'
+          typeof data.error === 'string' ? data.error : '応答の取得に失敗しました'
         );
       }
-      const ephemeralKey = sessionData.client_secret?.value;
-      const model = sessionData.model;
-      if (!ephemeralKey || !model) {
-        throw new Error('サーバーからの応答が不正です');
-      }
 
-      // 2. WebRTC接続を確立する
-      pc = new RTCPeerConnection();
-
-      pc.ontrack = (event) => {
-        audioEl.srcObject = event.streams[0];
-      };
-
-      localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      localStream.getTracks().forEach((track) => pc.addTrack(track, localStream));
-
-      dc = pc.createDataChannel('oai-events');
-      dc.addEventListener('message', handleServerEvent);
-      dc.addEventListener('open', () => {
-        connected = true;
-        connecting = false;
-        setStatus('接続済み・話しかけてください');
-        talkBtn.textContent = '通話を終了';
-        talkBtn.classList.add('active');
-        talkBtn.disabled = false;
-      });
-      dc.addEventListener('close', () => {
-        if (connected) stopSession();
-      });
-
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-
-      const sdpResponse = await fetch(
-        `https://api.openai.com/v1/realtime?model=${encodeURIComponent(model)}`,
-        {
-          method: 'POST',
-          body: offer.sdp,
-          headers: {
-            Authorization: `Bearer ${ephemeralKey}`,
-            'Content-Type': 'application/sdp',
-          },
-        }
-      );
-
-      if (!sdpResponse.ok) {
-        throw new Error('OpenAI Realtime APIへの接続に失敗しました');
-      }
-
-      const answerSdp = await sdpResponse.text();
-      await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
+      const reply = data.reply || '';
+      history.push({ role: 'assistant', content: reply });
+      appendTranscript('ai', reply);
+      speak(reply);
     } catch (err) {
       console.error(err);
       setStatus(`エラー: ${err.message}`);
-      cleanupConnection();
-      talkBtn.disabled = false;
+      busy = false;
+      resumeListeningIfActive();
     }
   }
 
-  function handleServerEvent(event) {
-    let data;
+  function speak(text) {
+    speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = 'ja-JP';
+    utter.onend = () => {
+      busy = false;
+      setStatus(listening ? '聞いています...' : '待機中');
+      resumeListeningIfActive();
+    };
+    utter.onerror = () => {
+      busy = false;
+      resumeListeningIfActive();
+    };
+    speechSynthesis.speak(utter);
+  }
+
+  function resumeListeningIfActive() {
+    if (!listening) return;
     try {
-      data = JSON.parse(event.data);
+      recognition.start();
     } catch {
-      return;
-    }
-
-    switch (data.type) {
-      // ユーザーの発話が文字起こしされた
-      case 'conversation.item.input_audio_transcription.completed':
-        appendTranscript('user', data.transcript);
-        break;
-      // AIの発話の文字起こしが完了した
-      case 'response.audio_transcript.done':
-        appendTranscript('ai', data.transcript);
-        break;
-      case 'error':
-        console.error('Realtime APIエラー:', data.error || data);
-        setStatus('エラーが発生しました（詳細はコンソールを確認）');
-        break;
-      default:
-        break;
+      // 既に開始されている場合などは無視
     }
   }
 
-  function cleanupConnection() {
-    if (dc) {
-      dc.removeEventListener('message', handleServerEvent);
-      dc.close();
-    }
-    if (pc) pc.close();
-    if (localStream) localStream.getTracks().forEach((t) => t.stop());
-    pc = null;
-    dc = null;
-    localStream = null;
+  function startSession() {
+    listening = true;
+    busy = false;
+    recognition = createRecognition();
+    recognition.start();
+    talkBtn.textContent = '通話を終了';
+    talkBtn.classList.add('active');
+    setStatus('聞いています...');
   }
 
   function stopSession() {
-    cleanupConnection();
-    connected = false;
-    connecting = false;
+    listening = false;
+    busy = false;
+    speechSynthesis.cancel();
+    if (recognition) recognition.stop();
+    recognition = null;
     talkBtn.textContent = '通話を開始';
     talkBtn.classList.remove('active');
-    talkBtn.disabled = false;
     setStatus('待機中');
   }
 
   talkBtn.addEventListener('click', () => {
-    if (connecting) return;
-    if (connected) {
+    if (listening) {
       stopSession();
     } else {
       startSession();
     }
   });
 
-  // ページを離れる際にマイクを確実に解放する
-  window.addEventListener('beforeunload', cleanupConnection);
+  window.addEventListener('beforeunload', () => {
+    if (recognition) recognition.stop();
+    speechSynthesis.cancel();
+  });
 })();
