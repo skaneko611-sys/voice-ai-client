@@ -154,4 +154,8 @@
     if (recognition) recognition.stop();
     speechSynthesis.cancel();
   });
+
+  // ページを開いたら、ボタンを押さなくても自動的に通話を開始する。
+  // (start.batでは音声の自動再生制限を無効にしたChromeプロファイルを使う前提)
+  startSession();
 })();
