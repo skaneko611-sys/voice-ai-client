@@ -1,16 +1,17 @@
 // voice-ai-client server
 //
 // Serves the static browser client and proxies chat requests to the Gemini
-// API. The Gemini API key stays server-side (read from an environment
-// variable) so it is never exposed to the browser/client JavaScript.
+// API. The Gemini API key stays server-side (read from .env via dotenv) so
+// it is never exposed to the browser/client JavaScript.
 //
 // Setup:
 //   1. Get a free API key at https://aistudio.google.com/app/apikey
-//   2. export GEMINI_API_KEY=your-key-here
+//   2. cp .env.example .env, then paste the key into .env
 //   3. npm install
 //   4. npm start
 //   5. Open http://localhost:3000
 
+require("dotenv").config();
 const express = require("express");
 const path = require("path");
 
