@@ -51,7 +51,15 @@ ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 |---|---|---|
 | `ANTHROPIC_MODEL` | 使用するClaudeモデル | `claude-sonnet-5` |
 | `SYSTEM_PROMPT` | AIの人格・応答スタイルを指定するシステムプロンプト | 音声向けの簡潔な応答を指示する文言 |
+| `ANTHROPIC_WORKSPACE_ID` | ワークスペースに紐付いていないAPIキーを使う場合のみ必要（下記参照） | なし |
 | `PORT` | サーバーのポート番号 | `3000` |
+
+### 「This API key is not scoped to a workspace」エラーが出た場合
+
+発行したAPIキーが特定のワークスペースに紐付いていない場合に発生します。以下のいずれかで解決してください。
+
+- **キーを再発行する（推奨）**: https://console.anthropic.com/settings/keys で「Create Key」時に特定のワークスペースを選択してキーを作り直す
+- **現在のキーのまま使う**: Anthropic ConsoleのURL（`https://console.anthropic.com/workspaces/wrkspc_xxxxx/...`）に含まれる `wrkspc_` から始まるワークスペースIDを `.env` の `ANTHROPIC_WORKSPACE_ID` に設定する
 
 ### 3. サーバーの起動
 

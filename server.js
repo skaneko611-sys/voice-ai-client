@@ -15,6 +15,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const PORT = process.env.PORT || 3000;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+const ANTHROPIC_WORKSPACE_ID = process.env.ANTHROPIC_WORKSPACE_ID;
 const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-5';
 const SYSTEM_PROMPT =
   process.env.SYSTEM_PROMPT ||
@@ -42,13 +43,21 @@ app.post('/chat', async (req, res) => {
   }
 
   try {
+    const headers = {
+      'x-api-key': ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
+      'Content-Type': 'application/json',
+    };
+    // 組織レベルのAPIキー(特定のワークスペースに紐付いていないキー)を使う場合、
+    // どのワークスペースを使うかを明示するために必要。
+    // .envで ANTHROPIC_WORKSPACE_ID を設定していれば付与する。
+    if (ANTHROPIC_WORKSPACE_ID) {
+      headers['anthropic-workspace-id'] = ANTHROPIC_WORKSPACE_ID;
+    }
+
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: {
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify({
         model: ANTHROPIC_MODEL,
         max_tokens: 300,
