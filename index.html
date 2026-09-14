@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>voice-ai-client</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="app">
+    <h1>voice-ai-client</h1>
+    <p class="subtitle">ブラウザ標準の Web Speech API だけで動く、無料の音声入出力デモ</p>
+
+    <section class="card">
+      <h2>1. 音声入力 (STT)</h2>
+      <div class="row">
+        <button id="micBtn" class="btn btn-primary">🎤 マイクで話す</button>
+        <span id="micStatus" class="status">停止中</span>
+      </div>
+      <div class="transcript-box">
+        <div class="transcript-label">認識結果</div>
+        <p id="interim" class="interim"></p>
+        <ul id="finalList" class="final-list"></ul>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>2. 音声出力 (TTS)</h2>
+      <div class="row">
+        <label for="voiceSelect">声</label>
+        <select id="voiceSelect"></select>
+      </div>
+      <div class="row sliders">
+        <label>速度 <span id="rateVal">1.0</span>
+          <input type="range" id="rate" min="0.5" max="2" step="0.1" value="1">
+        </label>
+        <label>高さ <span id="pitchVal">1.0</span>
+          <input type="range" id="pitch" min="0" max="2" step="0.1" value="1">
+        </label>
+      </div>
+      <textarea id="speakText" rows="3" placeholder="ここに読み上げたい文章を入力">こんにちは。これは音声合成のテストです。</textarea>
+      <div class="row">
+        <button id="speakBtn" class="btn btn-primary">🔊 読み上げる</button>
+        <button id="stopSpeakBtn" class="btn btn-ghost">■ 停止</button>
+        <label class="checkbox">
+          <input type="checkbox" id="echoBack" checked>
+          認識結果を自動で読み上げる（音声のオウム返し）
+        </label>
+      </div>
+    </section>
+
+    <p class="note">
+      ※ 音声認識(STT)は Chrome / Edge 等 Web Speech API 対応ブラウザでのみ動作します。マイクの使用許可が必要です。<br>
+      ※ サーバー通信やAPIキーは一切使用していません（完全無料・完全ローカル処理）。
+    </p>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
