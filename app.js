@@ -14,7 +14,13 @@ const pitchVal = document.getElementById("pitchVal");
 const speakText = document.getElementById("speakText");
 const speakBtn = document.getElementById("speakBtn");
 const stopSpeakBtn = document.getElementById("stopSpeakBtn");
-const echoBack = document.getElementById("echoBack");
+
+const aiReply = document.getElementById("aiReply");
+const chatLog = document.getElementById("chatLog");
+const aiStatus = document.getElementById("aiStatus");
+const chatInput = document.getElementById("chatInput");
+const chatSendBtn = document.getElementById("chatSendBtn");
+const chatClearBtn = document.getElementById("chatClearBtn");
 
 // ---------- TTS (speechSynthesis) ----------
 
@@ -61,6 +67,79 @@ stopSpeakBtn.addEventListener("click", () => speechSynthesis.cancel());
 rateInput.addEventListener("input", () => (rateVal.textContent = rateInput.value));
 pitchInput.addEventListener("input", () => (pitchVal.textContent = pitchInput.value));
 
+// ---------- AI会話 (Gemini API 無料枠, /api/chat 経由) ----------
+
+let chatHistory = []; // { role: "user" | "model", text: string }[]
+
+function renderChatLog() {
+  chatLog.innerHTML = "";
+  if (chatHistory.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "chat-empty";
+    empty.textContent = "マイクで話すか、下のテキスト入力から送信すると会話が始まります。";
+    chatLog.appendChild(empty);
+    return;
+  }
+  chatHistory.forEach((turn) => {
+    const bubble = document.createElement("div");
+    bubble.className = `chat-bubble ${turn.role}`;
+    bubble.textContent = turn.text;
+    chatLog.appendChild(bubble);
+  });
+  chatLog.scrollTop = chatLog.scrollHeight;
+}
+
+async function askAI(userText) {
+  if (!userText || !userText.trim()) return;
+
+  chatHistory.push({ role: "user", text: userText });
+  renderChatLog();
+  aiStatus.textContent = "AIが応答を考えています...";
+
+  try {
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages: chatHistory }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.error || `サーバーエラー (status ${res.status})`);
+    }
+
+    chatHistory.push({ role: "model", text: data.reply });
+    renderChatLog();
+    speak(data.reply);
+    aiStatus.textContent = "";
+  } catch (err) {
+    aiStatus.textContent = "";
+    const bubble = document.createElement("div");
+    bubble.className = "chat-bubble error";
+    bubble.textContent = `エラー: ${err.message}`;
+    chatLog.appendChild(bubble);
+    chatLog.scrollTop = chatLog.scrollHeight;
+  }
+}
+
+chatSendBtn.addEventListener("click", () => {
+  const text = chatInput.value;
+  chatInput.value = "";
+  askAI(text);
+});
+
+chatInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") chatSendBtn.click();
+});
+
+chatClearBtn.addEventListener("click", () => {
+  chatHistory = [];
+  renderChatLog();
+  aiStatus.textContent = "";
+});
+
+renderChatLog();
+
 // ---------- STT (SpeechRecognition) ----------
 
 const SpeechRecognitionImpl = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -83,7 +162,11 @@ if (!SpeechRecognitionImpl) {
       const text = result[0].transcript;
       if (result.isFinal) {
         addFinalTranscript(text);
-        if (echoBack.checked) speak(text);
+        if (aiReply.checked) {
+          askAI(text);
+        } else {
+          speak(text); // AI応答なしの場合はオウム返しでSTT/TTSの動作確認
+        }
       } else {
         interim += text;
       }
